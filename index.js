@@ -7,11 +7,15 @@ const { MongoClient } = require("mongodb");
 const app = express();
 
 const PORT = process.env.PORT || 5000;
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
+// Comma-separated list of allowed origins (e.g. "http://localhost:3000,https://<frontend>.vercel.app")
+const CORS_ORIGINS = (process.env.CLIENT_URL || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: CLIENT_URL,
+    origin: CORS_ORIGINS.length === 1 ? CORS_ORIGINS[0] : CORS_ORIGINS,
     credentials: true,
   }),
 );
