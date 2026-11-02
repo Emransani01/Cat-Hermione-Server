@@ -65,7 +65,7 @@ Create a `.env` file in the server root and configure the required environment v
 Start the server:
 
 ```bash
-node index.js
+npm start
 ```
 
 The server runs on port `5000` by default.
