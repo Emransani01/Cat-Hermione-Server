@@ -1,6 +1,16 @@
-const { jwtVerify, createRemoteJWKSet } = require("jose");
+// jose v6 is ESM-only, so a CommonJS module must load it via dynamic import().
+const josePromise = import("jose");
 
-const JWKS = createRemoteJWKSet(new URL(process.env.JWKS_URL));
+let jwksPromise = null;
+
+function getJwks() {
+  if (!jwksPromise) {
+    jwksPromise = josePromise.then(({ createRemoteJWKSet }) =>
+      createRemoteJWKSet(new URL(process.env.JWKS_URL)),
+    );
+  }
+  return jwksPromise;
+}
 
 const verifyToken = async (req, res, next) => {
   try {
@@ -22,7 +32,9 @@ const verifyToken = async (req, res, next) => {
       });
     }
 
-    const { payload } = await jwtVerify(token, JWKS, {
+    const [{ jwtVerify }, jwks] = await Promise.all([josePromise, getJwks()]);
+
+    const { payload } = await jwtVerify(token, jwks, {
       issuer: process.env.JWT_ISSUER,
       audience: process.env.JWT_AUDIENCE,
     });

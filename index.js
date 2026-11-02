@@ -18,8 +18,25 @@ app.use(
 
 app.use(express.json());
 
-// MongoDB connection
+// MongoDB connection (cached across warm invocations on Vercel)
 const client = new MongoClient(process.env.MONGODB_URI);
+let dbPromise = null;
+
+function getDb() {
+  if (!dbPromise) {
+    dbPromise = client
+      .connect()
+      .then(() => {
+        console.log("MongoDB Connected Successfully!");
+        return client.db(process.env.DB_NAME || "cat-hermione");
+      })
+      .catch((error) => {
+        dbPromise = null;
+        throw error;
+      });
+  }
+  return dbPromise;
+}
 
 // Root route
 app.get("/", (req, res) => {
@@ -34,20 +51,29 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Ensure DB is connected for routes that use req.app.locals.db
+app.use("/api/events", async (req, res, next) => {
+  try {
+    req.app.locals.db = await getDb();
+    next();
+  } catch (error) {
+    console.error("Database connection failed:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed.",
+    });
+  }
+});
+
 // Events routes
 const eventsRoutes = require("./routes/events");
 app.use("/api/events", eventsRoutes);
 
-// Start server
+// Vercel serverless: export the app instead of listening.
+// Local development (`npm start`) still starts a server.
 async function startServer() {
   try {
-    await client.connect();
-
-    const db = client.db(process.env.DB_NAME || "cat-hermione");
-
-    app.locals.db = db;
-
-    console.log("MongoDB Connected Successfully!");
+    await getDb();
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
@@ -58,4 +84,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+module.exports = app;
